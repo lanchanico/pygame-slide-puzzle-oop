@@ -25,7 +25,14 @@ KEY_MAPPING = {
     }
 
 ANIMATION_TIME = 500  # miliseconds
-    
+
+
+COLORS = {
+    'red' : (204, 21, 18),
+    'gray': (55, 52, 53),
+    'white': (254, 254, 254), 
+    'black': (1, 1, 1)
+    }
 
 
 class Model:
@@ -81,7 +88,7 @@ class Model:
         except IndexError:
             return
         self.observer.add_animation(to_move_pos, self.zero_pos)
-        self.observer.print_hui(to_move_pos, self.zero_pos)
+        self.observer.print_hui(self.zero_pos, to_move_pos)
         self.update_zero()
         self.observer.print_field()
 
@@ -91,21 +98,26 @@ class AnimationTile:
         self.from_pos = from_pos
         self.to_pos = to_pos
         self.anim_direction = tuple([self.to_pos[i] - self.from_pos[i] for i in (0, 1)])
-        self.cur_pos = [self.from_pos[i] * TILE_SIZE for i in (0, 1)]
-        self.end_pos = [self.to_pos[i] * TILE_SIZE for i in (0, 1)]
-        self.to_add = [self.anim_direction[i] * TILE_SIZE * 0.3 for i in (0, 1)]
+        self.cur_pos = [self.to_pos[i] * TILE_SIZE for i in (0, 1)]
+        self.end_pos = [self.from_pos[i] * TILE_SIZE for i in (0, 1)]
+        self.to_add = [self.anim_direction[i] * TILE_SIZE * 0.05 for i in (0, 1)]
+                                                          # ^^^^ коефициент приращения
 
         self.timer = 0
         self.end_anim = False
     
     def update_pos(self, now):
-        if now - self.timer >= 1000.0/3:
+        if now - self.timer >= 1000.0/ANIMATION_TIME:
             self.timer = now
-            self.cur_pos = [self.cur_pos[i] + self.to_add[i] for i in (0, 1)]
-            print(self.cur_pos)
+            self.cur_pos = [self.cur_pos[i] - self.to_add[i] for i in (0, 1)]
+        
+        index_not_zero = 1 if self.anim_direction.index(0) == 0 else 0
+        if self.end_pos[index_not_zero] - 10 < self.cur_pos[index_not_zero] < self.end_pos[index_not_zero] + 10:
+            self.cur_pos = self.end_pos
+            self.end_anim = True
     
     def get_cur_pos(self):
-        return self.cur_pos
+        return reversed(self.cur_pos)
 
 class View:
     def __init__(self):
@@ -118,13 +130,11 @@ class View:
     
     def print_hui(self, some, some_other):
         self.on_animation[some] = AnimationTile(some, some_other)
-        print(self.on_animation)
 
     def add_animation(self, pos, end_pos):
         pass        
     
     def update_my_field(self):
-
         self.my_field = self.model.get_field()
     
     def print_field(self):
@@ -145,9 +155,7 @@ class View:
     def update(self):
         now = pygame.time.get_ticks()
         for i in self.on_animation:
-            if self.on_animation[i].end_anim:
-                del self.on_animation[i]
-            else:
+            if not self.on_animation[i].end_anim:
                 self.on_animation[i].update_pos(now)
     
     def draw_cell(self, pos):
@@ -157,33 +165,28 @@ class View:
             cur_pos = (pos[1] * TILE_SIZE, pos[0] * TILE_SIZE)
         rect = pygame.Rect(*cur_pos, TILE_SIZE, TILE_SIZE)
         surf = pygame.Surface((int(rect.width), int(rect.height)))
+        surf.set_colorkey((0, 0, 0))
         
         value = self.model.get_field()[pos[0]][pos[1]]
 
         if not value:
-            color = pygame.Color('black')
+            return
         else:
             color = pygame.Color('lightblue') # в другом порядке бо draw ставит сначала x а массив - сначал y
         
-        text: pygame.Surface = FONT.render(str(value), True, pygame.Color('black'))
+        text: pygame.Surface = FONT.render(str(value), True, COLORS['red'])
         text_rect = text.get_rect()
         text_rect.center = (rect.width/2-text.get_width()/2, rect.height/2-text.get_height()/2)
         
-        pygame.draw.rect(surf, color, (2, 2, TILE_SIZE-4, TILE_SIZE-4), 0, 15)
+        pygame.draw.rect(surf, pygame.Color('skyblue'), (2, 2, TILE_SIZE-4, TILE_SIZE-4), 0, 15)
         surf.blit(text, text_rect.center)
         self.screen.blit(surf, rect)
 
-    def add_animation(self, from_pos, to_pos):
-        pass
-
-    def animate(self, from_pos, to_pos):
-        pass
-
     def draw(self):
+        self.screen.fill(COLORS['gray'])
         for y in range(GRID_SIZE):
             for x in range(GRID_SIZE):
                 self.draw_cell((y, x))
-                # self.draw_cell(anim.get_anim_pos())
 
     def main_loop(self):
         self.print_field()
@@ -199,7 +202,7 @@ def main():
     global FONT
     pygame.init()
     pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
-    FONT = pygame.font.Font(None, 40)
+    FONT = pygame.font.Font(None, 50)
     view = View()
     view.main_loop()
 
