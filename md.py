@@ -88,7 +88,7 @@ class Model:
         except IndexError:
             return
         self.observer.add_animation(to_move_pos, self.zero_pos)
-        self.observer.print_hui(self.zero_pos, to_move_pos)
+        self.observer.add_anim(self.zero_pos, to_move_pos)
         self.update_zero()
         self.observer.print_field()
 
@@ -125,10 +125,11 @@ class View:
         self.model.set_observer(self)
         self.screen = pygame.display.get_surface()
         self.my_field = None
+        self.done = False
         self.animate_now = False
         self.on_animation = {}
     
-    def print_hui(self, some, some_other):
+    def add_anim(self, some, some_other):
         self.on_animation[some] = AnimationTile(some, some_other)
 
     def add_animation(self, pos, end_pos):
@@ -147,8 +148,7 @@ class View:
     def event_loop(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
+                self.done = True
             elif event.type == pygame.KEYDOWN:
                 self.model.get_key_pressed(event.key)
 
@@ -191,11 +191,17 @@ class View:
     def main_loop(self):
         self.print_field()
         # self.update_my_field()
-        while True:
+        while not self.done:
             self.event_loop()
             self.update()
             self.draw()
             pygame.display.update()
+
+
+# class Control:
+#     def __init__(self):
+#         self.fps = 60.0
+#         self.states = 
 
 
 def main():
@@ -205,6 +211,8 @@ def main():
     FONT = pygame.font.Font(None, 50)
     view = View()
     view.main_loop()
+    pygame.quit()
+    sys.exit()
 
 
 if __name__ == '__main__':
