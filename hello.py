@@ -97,18 +97,8 @@ class Model:
         return self.field
 
     def create_field(self):
-        # added = [-1,]
-        # for _ in range(GRID_SIZE):
-        #     row = []
-        #     for _ in range(GRID_SIZE):
-        #         item = randint(0, 15)
-        #         while item in added:
-        #             item = added[-1] + 1
-        #         row.append(item)
-        #         added.append(item)
-        #     self.field.append(row)
         self.field = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]]
-        self.win_pos = self.field
+        self.win_pos = [i[:] for i in self.field]
     
     def scrumble(self):
         dirs = list(KEY_MAPPING.values())
@@ -135,8 +125,6 @@ class Model:
             value = self.field[to_move_pos[0]][to_move_pos[1]]
             self.field[self.zero_pos[0]][self.zero_pos[1]] = value
             self.field[to_move_pos[0]][to_move_pos[1]] = 0
-
-
         except IndexError:
             return
         
@@ -145,9 +133,9 @@ class Model:
         
         if self.observer: self.observer.print_field()
     
-    def check_win(self):  # это не работает поскольку в процессе скрамбла self.field становится в self.win_pos
+    def check_win(self):  
         if self.field == self.win_pos:
-            self.done = True
+            return True
 
 
 class AnimationTile:
@@ -158,7 +146,6 @@ class AnimationTile:
         self.cur_pos = [self.to_pos[i] * TILE_SIZE for i in (0, 1)]
         self.end_pos = [self.from_pos[i] * TILE_SIZE for i in (0, 1)]
         self.to_add = [self.anim_direction[i] * TILE_SIZE * TILE_SPEED for i in (0, 1)]
-                                                          # ^^^ коефициент приращения
 
         self.timer = 0
         self.end_anim = False
@@ -179,7 +166,8 @@ class AnimationTile:
 
 class Game(_Scene):
     def __init__(self):
-        _Scene.__init__(self, "WIN")
+        self.next_states = ['WIN', 'CHOICE']
+        _Scene.__init__(self, self.next_states[1])
         self.reset()
     
     def reset(self):
@@ -190,6 +178,8 @@ class Game(_Scene):
         self.my_field = None
         self.animate_now = False
         self.on_animation = {}
+        self.end_timer = 0
+        self.game_time = 0
 
     def add_anim(self, some, some_other):
         self.on_animation[some] = AnimationTile(some, some_other)
@@ -203,6 +193,13 @@ class Game(_Scene):
             for value in i:
                 print("%3d" % value, end='')
             print()
+    
+    def start_end_timer(self, now):
+        if now - self.end_timer >= 1000.0/5:
+            if self.end_timer != 0: 
+                self.done = True
+                self.game_time = now - self.start_time
+            self.end_timer = now
 
     def get_event(self, event):
         if event.type == pygame.QUIT:
@@ -217,6 +214,8 @@ class Game(_Scene):
         for i in self.on_animation:
             if not self.on_animation[i].end_anim:
                 self.on_animation[i].update_pos(now)
+        if self.model.check_win():
+            self.start_end_timer(now)
 
 
     def draw_cell(self, pos, screen):
@@ -234,7 +233,7 @@ class Game(_Scene):
             return
     
                     # в другом порядке бо draw ставит сначала x а массив - сначал y
-        text: pygame.Surface = FONT.render(str(value), True, COLORS['red'])
+        text = FONT.render(str(value), True, COLORS['red'])
         text_rect = text.get_rect()
         text_rect.center = (rect.width/2-text.get_width()/2, rect.height/2-text.get_height()/2)
         
@@ -277,7 +276,34 @@ class Button:
         pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
         text = FONT.render(self.text, True, self.text_color)
         surf.blit(text, (self.rect.centerx - text.get_width()/2, self.rect.centery - text.get_height()/2))
+
+
+class DialogBox(_Scene):
+    def __init__(self):
+        _Scene.__init__(self, "WIN")
+        self.bg = pygame.Surface((SCREEN_SIZE, SCREEN_SIZE))
+        self.bg.set_alpha(70)
+        self.reset()
     
+    def reset(self):
+        _Scene.reset(self)
+        self.rect = pygame.Rect(SCREEN_SIZE/3, SCREEN_SIZE/3, SCREEN_SIZE/3*2, SCREEN_SIZE/3*2)
+        self.rect.center = SCREEN_SIZE/2, SCREEN_SIZE/2
+    
+    def get_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r:
+                self.done = True
+
+    def update(self, now):
+        _Scene.update(self, now)
+
+    def draw(self, surf):
+        background = self.screen_copy.copy()
+        background.blit(self.bg, (0, 0))
+        surf.blit(background, (0,0))
+        pygame.draw.rect(surf, COLORS['gray'], self.rect, 0, 15)
+        
     
 
 class WinScreen(_Scene):
@@ -315,9 +341,10 @@ class Control:
         self.done = False
         self.state_dict = {
             'WIN': WinScreen(), 
-            'GAME': Game() 
+            'GAME': Game(),
+            'CHOICE': DialogBox()
             }
-        self.state = self.state_dict['WIN'] # something like `self.state_dict['START']`
+        self.state = self.state_dict['WIN'] 
 
     def event_loop(self):
         for event in pygame.event.get():
@@ -330,8 +357,8 @@ class Control:
         now = pygame.time.get_ticks()
         self.state.update(now)
         if self.state.done:
-            self.state.reset()  # типа перезапустили сцену для дальнейшего использования 
-                                # повторно
+
+            self.state.reset()
             self.state = self.state_dict[self.state.next]
 
     def draw(self):
@@ -349,7 +376,7 @@ class Control:
             self.event_loop()
             self.update()
             self.draw()
-            pygame.display.update()
+            pygame.display.flip()
             self.clock.tick(self.fps)
             self.display_fps()
 
