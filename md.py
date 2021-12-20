@@ -87,7 +87,7 @@ class Model:
 
         except IndexError:
             return
-        self.observer.add_animation(to_move_pos, self.zero_pos)
+        
         self.observer.add_anim(self.zero_pos, to_move_pos)
         self.update_zero()
         self.observer.print_field()
@@ -131,15 +131,12 @@ class View:
     
     def add_anim(self, some, some_other):
         self.on_animation[some] = AnimationTile(some, some_other)
-
-    def add_animation(self, pos, end_pos):
-        pass        
     
     def update_my_field(self):
         self.my_field = self.model.get_field()
     
     def print_field(self):
-        print('\n\n\n')
+        print('\n\n\n\n')
         for i in self.model.get_field():
             for value in i:
                 print("%3d" % value, end='')

@@ -81,6 +81,8 @@ class SuperNextScreen(_Scene):
         self.interesting_text = 'this is SuperNextScreen, press b...'
         self.x = 10
         self.y = 10
+        self.timer = 0
+        self.seconds = 0
     
     def get_event(self, event):
         if event.type == pygame.KEYDOWN:
@@ -91,11 +93,16 @@ class SuperNextScreen(_Scene):
         _Scene.update(self, now)
         self.y += 0.5
         self.x += 0.5
+        if now - self.timer >= 1000:
+            self.timer = now
+            self.seconds += 1
     
     def draw(self, surf):
         surf.fill(pygame.Color('skyblue'))
         pygame.draw.rect(surf, pygame.Color('yellow'), (10, 10, 50, 50), 0, 20)
         text = FONT.render(self.interesting_text, True, (0, 0, 0))
+        time = FONT.render(str(self.seconds), True, (0, 0, 0))
+        surf.blit(time, (SCR_SIZE[0]/2, SCR_SIZE[1]/2))
         surf.blit(text, (int(self.x), int(self.y)))
 
 
