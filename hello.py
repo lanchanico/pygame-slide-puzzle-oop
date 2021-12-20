@@ -1,5 +1,5 @@
 import sys
-from random import randint
+from random import randint, choice
 import pygame
 from pygame.constants import MOUSEBUTTONDOWN
 
@@ -79,12 +79,16 @@ class _Scene(object):
 
 class Model:
     def __init__(self):
+        self.done = False
+
         self.field = []
+        self.win_pos = None
         self.create_field()
         self.zero_pos = None
         self.update_zero()
-        self.done = False
         self.observer = None
+
+        self.scrumble()
     
     def set_observer(self, obs):
         self.observer = obs
@@ -93,16 +97,23 @@ class Model:
         return self.field
 
     def create_field(self):
-        added = []
-        for _ in range(GRID_SIZE):
-            row = []
-            for _ in range(GRID_SIZE):
-                item = randint(0, 15)
-                while item in added:
-                    item = randint(0, 15)
-                row.append(item)
-                added.append(item)
-            self.field.append(row)
+        # added = [-1,]
+        # for _ in range(GRID_SIZE):
+        #     row = []
+        #     for _ in range(GRID_SIZE):
+        #         item = randint(0, 15)
+        #         while item in added:
+        #             item = added[-1] + 1
+        #         row.append(item)
+        #         added.append(item)
+        #     self.field.append(row)
+        self.field = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 0]]
+        self.win_pos = self.field
+    
+    def scrumble(self):
+        dirs = list(KEY_MAPPING.values())
+        for _ in range(100):
+            self.move(choice(dirs))
     
     def update_zero(self):
         for y in range(GRID_SIZE):
@@ -129,9 +140,14 @@ class Model:
         except IndexError:
             return
         
-        self.observer.add_anim(self.zero_pos, to_move_pos)
+        if self.observer: self.observer.add_anim(self.zero_pos, to_move_pos)
         self.update_zero()
-        self.observer.print_field()
+        
+        if self.observer: self.observer.print_field()
+    
+    def check_win(self):  # это не работает поскольку в процессе скрамбла self.field становится в self.win_pos
+        if self.field == self.win_pos:
+            self.done = True
 
 
 class AnimationTile:
@@ -163,7 +179,7 @@ class AnimationTile:
 
 class Game(_Scene):
     def __init__(self):
-        _Scene.__init__(self, "START")
+        _Scene.__init__(self, "WIN")
         self.reset()
     
     def reset(self):
@@ -195,13 +211,14 @@ class Game(_Scene):
             self.model.get_key_pressed(event.key)
             if event.key == pygame.K_r:
                 self.done = True
-    
+
     def update(self, now):
         _Scene.update(self, now)
         for i in self.on_animation:
             if not self.on_animation[i].end_anim:
                 self.on_animation[i].update_pos(now)
-    
+
+
     def draw_cell(self, pos, screen):
         if pos in self.on_animation:
             cur_pos = self.on_animation[pos].get_cur_pos()
@@ -215,9 +232,8 @@ class Game(_Scene):
 
         if not value:
             return
-        else:
-            color = pygame.Color('lightblue') # в другом порядке бо draw ставит сначала x а массив - сначал y
-        
+    
+                    # в другом порядке бо draw ставит сначала x а массив - сначал y
         text: pygame.Surface = FONT.render(str(value), True, COLORS['red'])
         text_rect = text.get_rect()
         text_rect.center = (rect.width/2-text.get_width()/2, rect.height/2-text.get_height()/2)
@@ -274,7 +290,8 @@ class WinScreen(_Scene):
     
     def reset(self):
         _Scene.reset(self)
-        self.button = Button(100, 100, SCREEN_SIZE/2, SCREEN_SIZE/2, "S T A R T", self.dead)
+        self.button = Button(100, 100, SCREEN_SIZE/2, SCREEN_SIZE/2, "S T A R T", 
+                                self.dead)
     
     def get_event(self, event):
         if event.type == pygame.KEYDOWN:
