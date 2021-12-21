@@ -1,3 +1,5 @@
+"""made by: https://github.com/Mekire"""
+
 import string
 import pygame as pg
 
