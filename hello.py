@@ -1,7 +1,8 @@
 import sys
-from random import randint, choice
+from random import choice, randint
 import pygame
-from pygame.constants import MOUSEBUTTONDOWN
+from textbox import TextBox
+from datetime import date
 
 CAPTION = 'something'
 
@@ -199,6 +200,7 @@ class Game(_Scene):
             if self.end_timer != 0: 
                 self.done = True
                 self.game_time = now - self.start_time
+                ChoiceScreen.score = now - self.start_time
             self.end_timer = now
 
     def get_event(self, event):
@@ -287,7 +289,7 @@ class DialogBox(_Scene):
     
     def reset(self):
         _Scene.reset(self)
-        self.rect = pygame.Rect(SCREEN_SIZE/3, SCREEN_SIZE/3, SCREEN_SIZE/3*2, SCREEN_SIZE/3*2)
+        self.rect = pygame.Rect(0, 0, SCREEN_SIZE/3*2, SCREEN_SIZE/3*2)
         self.rect.center = SCREEN_SIZE/2, SCREEN_SIZE/2
     
     def get_event(self, event):
@@ -303,8 +305,55 @@ class DialogBox(_Scene):
         background.blit(self.bg, (0, 0))
         surf.blit(background, (0,0))
         pygame.draw.rect(surf, COLORS['gray'], self.rect, 0, 15)
-        
+
+
+class SelectOrAppendWidget:
+    def __init__(self, field_width):
+        pass
+
+
+class ChoiceScreen(DialogBox):
+    score = None
+    def __init__(self):
+        DialogBox.__init__(self)
+        self.reset()
     
+    def reset(self):
+        DialogBox.reset(self)
+        self.yes_btn = Button(0, 0, text='yes', func=self.save_results)
+        self.no_btn = Button(0, 0, text='no', func=self.on_no_btn)
+        self.yes_btn.rect.y = self.no_btn.rect.y = self.rect.midbottom[1] - 70
+        self.yes_btn.rect.x = self.rect.x + 20
+        self.no_btn.rect.topright = self.rect.topright[0] - 20 , self.no_btn.rect.y
+
+    def on_no_btn(self):
+        self.done = True
+
+    def save_results(self):
+        dt = date.today()
+        dt_str = dt.strftime('%d/%m/%Y')
+        try:
+            with open('scores.txt', 'a') as file:
+                file.write("{} {}\n".format(self.score/1000.0, dt_str))
+        except FileNotFoundError:
+            with open('scores.txt', 'w') as file:
+                file.write("{} {}\n".format(self.score/1000.0, dt_str))
+        self.done = True
+
+    def get_event(self, event):
+        DialogBox.get_event(self, event)
+        self.yes_btn.get_event(event)
+        self.no_btn.get_event(event)
+    
+    def update(self, now):
+        DialogBox.update(self, now)
+    
+    def draw(self, surf):
+        DialogBox.draw(self, surf)
+        self.yes_btn.draw(surf)
+        self.no_btn.draw(surf)
+
+
 
 class WinScreen(_Scene):
     def __init__(self):
@@ -342,7 +391,7 @@ class Control:
         self.state_dict = {
             'WIN': WinScreen(), 
             'GAME': Game(),
-            'CHOICE': DialogBox()
+            'CHOICE': ChoiceScreen()
             }
         self.state = self.state_dict['WIN'] 
 
@@ -382,11 +431,14 @@ class Control:
 
 
 def main():
-    global FONT
+    global FONT, SMALL_FONT
     pygame.init()
     FONT = pygame.font.Font(None, 50)
+    SMALL_FONT = pygame.font.Font(None, 25)
     pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
+
     Control().main_loop()
+    
     pygame.quit()
     sys.exit()
 
