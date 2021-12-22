@@ -1,6 +1,7 @@
 import sys
 from random import choice, randint
 import pygame
+from pygame.constants import MOUSEWHEEL
 from textbox import TextBox
 from datetime import date
 
@@ -64,6 +65,10 @@ class _Scene(object):
         self.done = False
         self.start_time = None
         self.screen_copy = None
+    
+    def set_next_state(self, next_state: str):
+        """needs for multiple next states"""
+        self.next = next_state
 
     def get_event(self, event):
         """Overload in child."""
@@ -250,7 +255,79 @@ class Game(_Scene):
                 self.draw_cell((y, x), surf)
 
 
-class Button:
+class AbstractButton:
+    def __init__(self, rect, **kwargs):
+        self.rect = pygame.Rect(rect)
+        self.process_kwargs(kwargs)
+    
+    def set_ava_kwargs(self):
+        return {  }
+    
+    def process_kwargs(self, kwargs):
+        init_kwargs = { "func" : lambda: "empty button func" }
+        defaults = self.set_ava_kwargs()
+        defaults.update(init_kwargs)
+        for kwarg in kwargs:
+            if kwarg in defaults.keys():
+                defaults[kwarg] = kwargs[kwarg]
+            else:
+                raise KeyError("Button accepts no keyword {}.".format(kwarg)) 
+        self.__dict__.update(defaults)
+    
+    def in_rect(self):
+        pass
+
+    def out_rect(self):
+        pass
+
+    def on_press(self):
+        self.func()
+    
+    def get_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            if self.rect.collidepoint(event.pos):
+                self.in_rect()
+            else:
+                self.out_rect()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.on_press()
+                
+    
+    def draw(self):
+        pass
+
+
+class IconButton(AbstractButton):
+    def __init__(self, rect, **kwargs):
+        AbstractButton.__init__(self, rect, **kwargs)
+        self.icon, self.icon_rect = self.generate_icon()
+        self.icon_rect.center = self.rect.center
+        self.cur_color = self.out_color
+    
+    def set_ava_kwargs(self):
+        return {
+            "in_color" : pygame.Color("blue"),
+            "out_color" : pygame.Color("darkgreen")
+            }
+    
+    def generate_icon(self):
+        surf = pygame.Surface((20, 20))
+        surf.fill((255, 0, 0))
+        return surf, surf.get_rect()
+    
+    def in_rect(self):
+        self.cur_color = self.in_color
+    
+    def out_rect(self):
+        self.cur_color = self.out_color
+    
+    def draw(self, surf):
+        pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
+        surf.blit(self.icon, self.icon_rect)
+        
+
+class Button:   # надо переделать это с использованием AbstractButton
     def __init__(self, x, y, width=100, height=50, text="button", func=None):
         self.x = x
         self.y = y
@@ -307,11 +384,6 @@ class DialogBox(_Scene):
         pygame.draw.rect(surf, COLORS['gray'], self.rect, 0, 15)
 
 
-class SelectOrAppendWidget:
-    def __init__(self, field_width):
-        pass
-
-
 class ChoiceScreen(DialogBox):
     score = None
     def __init__(self):
@@ -357,22 +429,30 @@ class ChoiceScreen(DialogBox):
 
 class WinScreen(_Scene):
     def __init__(self):
-        _Scene.__init__(self, 'GAME')
+        self.states = ['GAME', 'STATS']
+        _Scene.__init__(self)
         self.reset()
-    
-    def dead(self):
-        self.done = True
     
     def reset(self):
         _Scene.reset(self)
         self.button = Button(100, 100, SCREEN_SIZE/2, SCREEN_SIZE/2, "S T A R T", 
-                                self.dead)
+                                self.on_start_button)
+        self.stats_btn = IconButton((10, 10, 50, 50), func=self.on_stats_btn)
     
+    def on_start_button(self):
+        self.set_next_state(self.states[0])
+        self.done = True
+    
+    def on_stats_btn(self):
+        self.set_next_state(self.states[1])
+        self.done = True
+
     def get_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_r:
                 self.done = True
         self.button.get_event(event)
+        self.stats_btn.get_event(event)
 
     def update(self, now):
         _Scene.update(self, now)
@@ -380,7 +460,61 @@ class WinScreen(_Scene):
     def draw(self, surf):
         surf.fill(COLORS['gray'])
         self.button.draw(surf)
+        self.stats_btn.draw(surf)
 
+
+class ScrollView:
+    def __init__(self, child: pygame.Surface, height):
+        self.child = child
+        self.rect = child.get_rect() # перемещается
+        self.rect.height = height # неизменен
+        self.pos = self.rect.topleft # неизменен
+        self.scrollsurf = pygame.Surface(self.rect.size) # то где будем рисовать кусок child
+        self.cur_y_pos = self.rect.y
+
+    def get_event(self, event):
+        if event.type == pygame.MOUSEWHEEL:
+            self.cur_y_pos += event.y
+            self.rect.y += event.y
+            print(self.cur_y_pos)
+
+    def update(self, now):
+        pass
+
+    def draw(self, surf):
+        self.scrollsurf.blit(self.child, self.rect)
+        surf.blit(self.scrollsurf, self.pos)
+
+
+class StatsScreen(_Scene):
+    def __init__(self):
+        _Scene.__init__(self, "WIN")
+        self.reset()
+    
+    def reset(self):
+        _Scene.reset(self)
+        self.num = 0
+        self.somesurf = pygame.Surface((50, 100))
+        self.somesurf.fill(pygame.Color('blue'))
+        for i in range(5):
+            pygame.draw.rect(self.somesurf, pygame.Color("pink"),(10, i * 30 + 10, 30, 29))
+        self.scrollsome = ScrollView(self.somesurf, 50)
+
+    def get_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            self.done = True
+        if event.type == pygame.MOUSEWHEEL:
+            self.num += event.y
+        self.scrollsome.get_event(event)
+    
+    def update(self, now):
+        _Scene.update(self, now)
+    
+    def draw(self, surf):
+        text = FONT.render(str(self.num), True, (255, 255, 255))
+        surf.fill((145, 0, 145))
+        surf.blit(text, (SCREEN_SIZE/2-text.get_width()/2, SCREEN_SIZE/2-text.get_height()/2))
+        self.scrollsome.draw(surf)
 
 class Control:
     def __init__(self):
@@ -391,7 +525,8 @@ class Control:
         self.state_dict = {
             'WIN': WinScreen(), 
             'GAME': Game(),
-            'CHOICE': ChoiceScreen()
+            'CHOICE': ChoiceScreen(),
+            'STATS' : StatsScreen(),
             }
         self.state = self.state_dict['WIN'] 
 

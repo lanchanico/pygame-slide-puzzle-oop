@@ -5,6 +5,9 @@
 # cursor = sql_connection.cursor()
 # cursor.execute("select * from statistics;")
 # print(cursor)
-from datetime import datetime
+class A:
+    def __init__(self, d):
+        self.__dict__.update(d)
 
-print(datetime.now().strptime('%D : %M : %Y'))
+ag = A({ "hee" : 549, "me_123" : "herovo", "doom" : [1, 3, 5, 7, 9] })
+print(ag.__dict__)
