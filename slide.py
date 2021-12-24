@@ -344,35 +344,35 @@ class TextButton(AbstractButton):
         text = FONT.render(self.text, True, self.text_color)
         surf.blit(text, (self.rect.centerx - text.get_width()/2, self.rect.centery - text.get_height()/2))
 
-
-class Button:   # надо переделать это с использованием AbstractButton
-    def __init__(self, x, y, width=100, height=50, text="button", func=None):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.text = text
-        self.slot = func
-        self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
-        self.main_color = pygame.Color('darkred')
-        self.hower_color = pygame.Color('brown')
-        self.text_color = pygame.Color('white')
-        self.cur_color = self.main_color
+# simple button
+# class Button:   # надо переделать это с использованием AbstractButton
+#     def __init__(self, x, y, width=100, height=50, text="button", func=None):
+#         self.x = x
+#         self.y = y
+#         self.width = width
+#         self.height = height
+#         self.text = text
+#         self.slot = func
+#         self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+#         self.main_color = pygame.Color('darkred')
+#         self.hower_color = pygame.Color('brown')
+#         self.text_color = pygame.Color('white')
+#         self.cur_color = self.main_color
     
-    def get_event(self, event):
-        if event.type == pygame.MOUSEMOTION:
-            if self.rect.collidepoint(event.pos):
-                self.cur_color = self.hower_color
-            else:
-                self.cur_color = self.main_color
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self.slot()
+#     def get_event(self, event):
+#         if event.type == pygame.MOUSEMOTION:
+#             if self.rect.collidepoint(event.pos):
+#                 self.cur_color = self.hower_color
+#             else:
+#                 self.cur_color = self.main_color
+#         if event.type == pygame.MOUSEBUTTONDOWN:
+#             if self.rect.collidepoint(event.pos):
+#                 self.slot()
 
-    def draw(self, surf):
-        pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
-        text = FONT.render(self.text, True, self.text_color)
-        surf.blit(text, (self.rect.centerx - text.get_width()/2, self.rect.centery - text.get_height()/2))
+#     def draw(self, surf):
+#         pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
+#         text = FONT.render(self.text, True, self.text_color)
+#         surf.blit(text, (self.rect.centerx - text.get_width()/2, self.rect.centery - text.get_height()/2))
 
 
 class DialogBox(_Scene):
