@@ -2,6 +2,7 @@ import sys
 from random import choice, randint
 import pygame
 from pygame.constants import MOUSEWHEEL
+from pygame.surface import Surface
 from textbox import TextBox
 from datetime import date
 
@@ -69,6 +70,10 @@ class _Scene(object):
     def set_next_state(self, next_state: str):
         """needs for multiple next states"""
         self.next = next_state
+    
+    def dead(self):
+        """for buttons"""
+        self.done = True
 
     def get_event(self, event):
         """Overload in child."""
@@ -187,6 +192,8 @@ class Game(_Scene):
         self.end_timer = 0
         self.game_time = 0
 
+        self.temporary_flag = False
+
     def add_anim(self, some, some_other):
         self.on_animation[some] = AnimationTile(some, some_other)
     
@@ -206,6 +213,7 @@ class Game(_Scene):
                 self.done = True
                 self.game_time = now - self.start_time
                 ChoiceScreen.score = now - self.start_time
+                ChoiceScreen.generate_text(ChoiceScreen)
             self.end_timer = now
 
     def get_event(self, event):
@@ -214,14 +222,14 @@ class Game(_Scene):
         elif event.type == pygame.KEYDOWN:
             self.model.get_key_pressed(event.key)
             if event.key == pygame.K_r:
-                self.done = True
+                self.temporary_flag = True
 
     def update(self, now):
         _Scene.update(self, now)
         for i in self.on_animation:
             if not self.on_animation[i].end_anim:
                 self.on_animation[i].update_pos(now)
-        if self.model.check_win():
+        if self.model.check_win() or self.temporary_flag:
             self.start_end_timer(now)
 
 
@@ -259,12 +267,16 @@ class AbstractButton:
     def __init__(self, rect, **kwargs):
         self.rect = pygame.Rect(rect)
         self.process_kwargs(kwargs)
+        self.cur_color = self.out_color
     
     def set_ava_kwargs(self):
         return {  }
     
     def process_kwargs(self, kwargs):
-        init_kwargs = { "func" : lambda: "empty button func" }
+        init_kwargs = { "func" : lambda: "empty button func",
+                        "in_color" : pygame.Color('brown'),
+                        "out_color" : pygame.Color('darkred'), 
+                        }
         defaults = self.set_ava_kwargs()
         defaults.update(init_kwargs)
         for kwarg in kwargs:
@@ -275,10 +287,10 @@ class AbstractButton:
         self.__dict__.update(defaults)
     
     def in_rect(self):
-        pass
-
+        self.cur_color = self.in_color
+    
     def out_rect(self):
-        pass
+        self.cur_color = self.out_color
 
     def on_press(self):
         self.func()
@@ -293,39 +305,45 @@ class AbstractButton:
             if self.rect.collidepoint(event.pos):
                 self.on_press()
                 
-    
-    def draw(self):
+    def draw(self, surf):
+        """overload"""
         pass
 
 
 class IconButton(AbstractButton):
     def __init__(self, rect, **kwargs):
         AbstractButton.__init__(self, rect, **kwargs)
-        self.icon, self.icon_rect = self.generate_icon()
+        self.icon_rect = self.icon.get_rect()
         self.icon_rect.center = self.rect.center
-        self.cur_color = self.out_color
     
     def set_ava_kwargs(self):
         return {
-            "in_color" : pygame.Color("blue"),
-            "out_color" : pygame.Color("darkgreen")
+            "icon" : pygame.Surface((20, 20)),
             }
-    
-    def generate_icon(self):
-        surf = pygame.Surface((20, 20))
-        surf.fill((255, 0, 0))
-        return surf, surf.get_rect()
-    
-    def in_rect(self):
-        self.cur_color = self.in_color
-    
-    def out_rect(self):
-        self.cur_color = self.out_color
     
     def draw(self, surf):
         pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
         surf.blit(self.icon, self.icon_rect)
+
+
+class TextButton(AbstractButton):
+    def __init__(self, rect, **kwargs):
+        AbstractButton.__init__(self, rect, **kwargs)
+
+    def set_ava_kwargs(self):
+        return {
+            "text" : "button",
+            "text_color" : (255, 255, 0),
+            }
         
+    def set_text_color(self, color):
+        self.text_color = color
+
+    def draw(self, surf):
+        pygame.draw.rect(surf, self.cur_color, self.rect, 0, 15)
+        text = FONT.render(self.text, True, self.text_color)
+        surf.blit(text, (self.rect.centerx - text.get_width()/2, self.rect.centery - text.get_height()/2))
+
 
 class Button:   # надо переделать это с использованием AbstractButton
     def __init__(self, x, y, width=100, height=50, text="button", func=None):
@@ -385,18 +403,35 @@ class DialogBox(_Scene):
 
 
 class ChoiceScreen(DialogBox):
-    score = None
+    score = 0
+    text = pygame.Surface((20, 20))
     def __init__(self):
         DialogBox.__init__(self)
         self.reset()
     
     def reset(self):
         DialogBox.reset(self)
-        self.yes_btn = Button(0, 0, text='yes', func=self.save_results)
-        self.no_btn = Button(0, 0, text='no', func=self.on_no_btn)
+        # self.yes_btn = Button(0, 0, text='yes', func=self.save_results)
+        self.yes_btn = TextButton((0, 0, 100, 50), text='yes', func=self.save_results)
+        self.no_btn = TextButton((0, 0, 100, 50), text='no', func=self.on_no_btn)
+        self.yes_btn.set_text_color(COLORS['white'])
+        self.no_btn.set_text_color(COLORS['white'])
         self.yes_btn.rect.y = self.no_btn.rect.y = self.rect.midbottom[1] - 70
         self.yes_btn.rect.x = self.rect.x + 20
         self.no_btn.rect.topright = self.rect.topright[0] - 20 , self.no_btn.rect.y
+        
+    def generate_text(self):
+        text = FONT.render(f"Your time is", True, COLORS['white'])
+        text_score = FONT.render(str(self.score/1000), True, COLORS['white'])
+        text1 = FONT.render("Save result?", True, COLORS['white'])
+        surf = pygame.Surface((text1.get_width(), text.get_height() + text1.get_height() + text_score.get_height()))
+        # surf.set_colorkey((0, 0, 0))
+        rct = surf.get_rect()
+        surf.blit(text, (surf.get_width()/2 - text.get_width()/2, 0))
+        surf.blit(text_score, (surf.get_width()/2 - text_score.get_width()/2, text.get_height()))
+        surf.blit(text1, (surf.get_width()/2 - text1.get_width()/2, surf.get_height() - text1.get_height()))
+        surf.set_colorkey((0, 0, 0))
+        self.text = surf
 
     def on_no_btn(self):
         self.done = True
@@ -416,6 +451,8 @@ class ChoiceScreen(DialogBox):
         DialogBox.get_event(self, event)
         self.yes_btn.get_event(event)
         self.no_btn.get_event(event)
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+            self.save_results()
     
     def update(self, now):
         DialogBox.update(self, now)
@@ -424,7 +461,7 @@ class ChoiceScreen(DialogBox):
         DialogBox.draw(self, surf)
         self.yes_btn.draw(surf)
         self.no_btn.draw(surf)
-
+        surf.blit(self.text, (self.rect.x + self.rect.width/2-self.text.get_width()/2, self.rect.y + 40))
 
 
 class WinScreen(_Scene):
@@ -435,10 +472,11 @@ class WinScreen(_Scene):
     
     def reset(self):
         _Scene.reset(self)
-        self.button = Button(100, 100, SCREEN_SIZE/2, SCREEN_SIZE/2, "S T A R T", 
-                                self.on_start_button)
-        self.stats_btn = IconButton((10, 10, 50, 50), func=self.on_stats_btn)
-    
+        self.button = TextButton((100, 100, SCREEN_SIZE/2, SCREEN_SIZE/2), text="S T A R T", func=self.on_start_button)
+        self.button.set_text_color(COLORS['white'])
+        self.stats_btn = IconButton((10, 10, 50, 50), func=self.on_stats_btn, icon=MENU_ICON)
+
+
     def on_start_button(self):
         self.set_next_state(self.states[0])
         self.done = True
@@ -449,8 +487,8 @@ class WinScreen(_Scene):
 
     def get_event(self, event):
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_r:
-                self.done = True
+            if event.key == pygame.K_SPACE:
+                self.on_start_button()
         self.button.get_event(event)
         self.stats_btn.get_event(event)
 
@@ -464,29 +502,34 @@ class WinScreen(_Scene):
 
 
 class ScrollView:
-    def __init__(self, child: pygame.Surface, height):
+    def __init__(self, child: pygame.Surface, height, pos=(0, 0)):
         self.child = child
-        self.rect = child.get_rect() # перемещается
-        self.rect.height = height # неизменен
-        self.pos = self.rect.topleft # неизменен
-        self.scrollsurf = pygame.Surface(self.rect.size) # то где будем рисовать кусок child
-        self.cur_y_pos = self.rect.y
+        self.child_rect = child.get_rect() # перемещается
+        self.child_rect.height = height # неизменен
+        self.pos = pos # неизменен
+        self.scrollsurf = pygame.Surface(self.child_rect.size) # то где будем рисовать кусок child
+        self.scrollrect = self.scrollsurf.get_rect()
+        self.cur_y_pos = self.child_rect.y
 
     def get_event(self, event):
         if event.type == pygame.MOUSEWHEEL:
-            self.cur_y_pos += event.y
-            self.rect.y += event.y
-            print(self.cur_y_pos)
+            self.update(event.y)
 
-    def update(self, now):
-        pass
+    def update(self, y):
+        self.child_rect.y += y
+    
+    def update_scrolled_surface(self, surf):
+        self.__init__(surf, self.child_rect.height, self.pos)
 
     def draw(self, surf):
-        self.scrollsurf.blit(self.child, self.rect)
+        self.scrollsurf.fill(tuple(map(lambda x: x - 10, COLORS['gray'])))
+        self.scrollsurf.blit(self.child, self.child_rect)
         surf.blit(self.scrollsurf, self.pos)
 
 
 class StatsScreen(_Scene):
+    data_surf = pygame.Surface((50, 50))
+
     def __init__(self):
         _Scene.__init__(self, "WIN")
         self.reset()
@@ -494,27 +537,67 @@ class StatsScreen(_Scene):
     def reset(self):
         _Scene.reset(self)
         self.num = 0
-        self.somesurf = pygame.Surface((50, 100))
-        self.somesurf.fill(pygame.Color('blue'))
-        for i in range(5):
-            pygame.draw.rect(self.somesurf, pygame.Color("pink"),(10, i * 30 + 10, 30, 29))
-        self.scrollsome = ScrollView(self.somesurf, 50)
+        self.data_surf = self.generate_table_surf()
+        self.data_scroll = ScrollView(self.data_surf, 300, (20, 90))
+        self.back_btn = IconButton((10, 10, 50, 50), func=self.dead, icon=BACK_ICON)
+        
+
+    def generate_table_surf(self):
+        margin = 10
+        with open('scores.txt', 'r') as file:
+            data = list(map(lambda x: x.split(), file.readlines()))
+        value_list = []
+        for i in data:
+            value_row = []
+            for val in i:
+                surf = FONT.render(val, True, pygame.Color(COLORS['white']))
+                value_row.append(surf)
+            value_list.append(value_row)
+
+        val_width = value_list[0][0].get_width() if value_list[0][0].get_width() > value_list[0][1].get_width() else value_list[0][1].get_width()
+        val_height = value_list[0][0].get_height()
+
+        surf_width = val_width * 2 + margin
+        surf_height = val_height * len(value_list) + margin * len(value_list) - 1
+        
+        surf = pygame.Surface((surf_width, surf_height))
+        surf.set_colorkey((0, 0, 0))
+
+        for y in range(len(value_list)):
+            for x in range(len(value_list[0])):
+                value = value_list[y][x]
+                _x = x * val_width
+                _y = y * val_height
+                surf.blit(value, (_x, _y))
+                
+        return surf
+    
+    def update_table(self):
+        self.data_surf = self.generate_table_surf()
+        self.data_scroll.update_scrolled_surface(self.data_surf)
 
     def get_event(self, event):
         if event.type == pygame.KEYDOWN:
             self.done = True
         if event.type == pygame.MOUSEWHEEL:
             self.num += event.y
-        self.scrollsome.get_event(event)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            pass
+        self.data_scroll.get_event(event)
+        self.back_btn.get_event(event)
     
     def update(self, now):
         _Scene.update(self, now)
+        if now - self.start_time > 5 and now - self.start_time < 80:
+            self.update_table()
     
     def draw(self, surf):
         text = FONT.render(str(self.num), True, (255, 255, 255))
-        surf.fill((145, 0, 145))
+        surf.fill(COLORS['gray'])
         surf.blit(text, (SCREEN_SIZE/2-text.get_width()/2, SCREEN_SIZE/2-text.get_height()/2))
-        self.scrollsome.draw(surf)
+        self.data_scroll.draw(surf)
+        self.back_btn.draw(surf)
+
 
 class Control:
     def __init__(self):
@@ -523,10 +606,10 @@ class Control:
         self.fps = FPS
         self.done = False
         self.state_dict = {
+            'STATS' : StatsScreen(),
             'WIN': WinScreen(), 
             'GAME': Game(),
             'CHOICE': ChoiceScreen(),
-            'STATS' : StatsScreen(),
             }
         self.state = self.state_dict['WIN'] 
 
@@ -566,11 +649,22 @@ class Control:
 
 
 def main():
-    global FONT, SMALL_FONT
+    global FONT, SMALL_FONT, MENU_ICON, BACK_ICON
     pygame.init()
     FONT = pygame.font.Font(None, 50)
     SMALL_FONT = pygame.font.Font(None, 25)
+
     pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
+
+    MENU_ICON = pygame.image.load('menu-button.png').convert_alpha()
+    arr = pygame.PixelArray(MENU_ICON)
+    arr.replace((0, 0, 0), COLORS['white'])
+    del arr
+    
+    BACK_ICON = pygame.image.load('back-button.png').convert_alpha()
+    arr = pygame.PixelArray(BACK_ICON)
+    arr.replace((0, 0, 0), COLORS['white'])
+    del arr
 
     Control().main_loop()
     
